@@ -99,12 +99,12 @@ if (defined $vlanid) {
 	if (defined ($vlans->{number}) && $vlans->{number} =~ /^\d+$/) {
 		$vlan = $vlans->{number};
 	} else {
-		print STDERR "ERROR: invalid vlanid specified.\n";
+		print STDERR "ERROR: invalid vlanid $vlanid specified.\n";
 		exit 1;
 	}
 
 	# then retrieve a list of relevant switches
-	$query = "SELECT sw.name, sw.snmppasswd FROM (vlan vl, switch sw) WHERE vl.infrastructureid = sw.infrastructure AND sw.active AND vl.id = ?";
+	$query = "SELECT sw.name, sw.hostname, sw.snmppasswd FROM (vlan vl, switch sw) WHERE vl.infrastructureid = sw.infrastructure AND sw.active AND vl.id = ?";
 	($sth = $dbh->prepare($query)) or die "$dbh->errstr\n";
 	$sth->execute($vlanid) or die "$dbh->errstr\n";
 
@@ -114,21 +114,22 @@ if (defined $vlanid) {
 	# IXP, so this is not recommended.
 
 	print STDERR "WARNING: executing this program without the \"--vlanid\" parameter is deprecated and will be removed in a future version of IXP Manager.\n";
-	$query = "SELECT sw.name, sw.snmppasswd FROM (vlan vl, switch sw) WHERE vl.infrastructureid = sw.infrastructure AND sw.active AND vl.number = ?";
+	$query = "SELECT sw.name, sw.hostname, sw.snmppasswd FROM (vlan vl, switch sw) WHERE vl.infrastructureid = sw.infrastructure AND sw.active AND vl.number = ?";
 	($sth = $dbh->prepare($query)) or die "$dbh->errstr\n";
 	$sth->execute($vlan) or die "$dbh->errstr\n";
 } else {
 	print STDERR "WARNING: executing this program without the \"--vlanid\" parameter is deprecated and will be removed in a future version of IXP Manager.\n";
 	# otherwise query all switches for legacy behaviour
-	$query = "SELECT name, snmppasswd FROM switch WHERE active AND switchtype = ?";
+	$query = "SELECT name, hostname, snmppasswd FROM switch WHERE active AND switchtype = ?";
 	($sth = $dbh->prepare($query)) or die "$dbh->errstr\n";
 	$sth->execute(SWITCHTYPE_SWITCH) or die "$dbh->errstr\n";
 }
 
 my $switches = $sth->fetchall_hashref('name');
 
-foreach my $switch (keys %{$switches}) {
-	$l2mapping->{$switch} = trawl_switch_snmp($switch, $switches->{$switch}->{snmppasswd}, $vlan);
+foreach my $switchname (keys %{$switches}) {
+	my $sw = $switches->{$switchname};
+	$l2mapping->{$switchname} = trawl_switch_snmp($sw->{hostname}, $sw->{snmppasswd}, $vlan);
 }
 
 if ($debug) {
